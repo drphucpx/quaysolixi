@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vòng Quay May Mắn - Oval Result</title>
+    <style>
+        :root {
+            --primary-color: #f1c40f;
+            --accent-color: #e67e22;
+            --bg-color: #1a1a2e;
+        }
+        body {
+            font-family: 'Arial', sans-serif;
+            display: flex; flex-direction: column; align-items: center;
+            min-height: 100vh; margin: 0; background: var(--bg-color); color: white;
+            padding: 20px;
+        }
+
+        /* Ô hiển thị kết quả dạng Oval */
+        .result-oval {
+            width: 300px;
+            height: 80px;
+            background: linear-gradient(145deg, #f1c40f, #d4ac0d);
+            border-radius: 50px; /* Tạo hình oval */
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+            font-weight: bold;
+            color: #1a1a2e;
+            box-shadow: 0 0 20px rgba(241, 196, 15, 0.5), inset 0 0 10px rgba(255,255,255,0.5);
+            margin-bottom: 30px;
+            border: 4px solid #fff;
+            transition: all 0.3s ease;
+            text-align: center;
+        }
+
+        .main-layout {
+            display: flex; gap: 40px; align-items: flex-start; flex-wrap: wrap; justify-content: center;
+        }
+
+        .wheel-box {
+            position: relative; width: 400px; height: 400px;
+            padding: 10px; background: #fff; border-radius: 50%;
+            box-shadow: 0 0 30px rgba(0,0,0,0.5);
+        }
+
+        .pointer {
+            position: absolute; top: -15px; left: 50%; transform: translateX(-50%);
+            width: 0; height: 0; border-left: 20px solid transparent;
+            border-right: 20px solid transparent; border-top: 45px solid #e74c3c;
+            z-index: 100;
+        }
+
+        canvas { border-radius: 50%; transition: transform 5s cubic-bezier(0.2, 0, 0.2, 1); }
+        
+        .history-section {
+            width: 280px; background: rgba(255, 255, 255, 0.05);
+            padding: 20px; border-radius: 15px; border: 1px solid rgba(255,255,255,0.1);
+            max-height: 450px; overflow-y: auto;
+        }
+
+        .history-item {
+            display: flex; justify-content: space-between; padding: 8px;
+            border-bottom: 1px solid #333; font-size: 0.9rem;
+        }
+
+        button {
+            margin-top: 30px; padding: 15px 60px; font-size: 1.3rem; font-weight: bold;
+            color: white; background: var(--accent-color); border: none; border-radius: 50px;
+            cursor: pointer; box-shadow: 0 5px 0 #d35400;
+        }
+
+        button:active { transform: translateY(3px); box-shadow: 0 2px 0 #d35400; }
+        button:disabled { background: #555; box-shadow: none; cursor: not-allowed; }
+    </style>
+</head>
+<body>
+
+    <div class="result-oval" id="result-display">CHỜ QUAY</div>
+    
+    <div class="main-layout">
+        <div style="text-align: center;">
+            <div class="wheel-box">
+                <div class="pointer"></div>
+                <canvas id="wheel" width="400" height="400"></canvas>
+            </div>
+            <p id="stats" style="color: #aaa; margin-top: 15px;">Lượt quay còn lại: 25/25</p>
+            <button id="spinBtn" onclick="spin()">QUAY NGAY</button>
+        </div>
+
+        <div class="history-section">
+            <h3 style="margin-top:0; color:var(--primary-color)">LỊCH SỬ</h3>
+            <div id="historyList"></div>
+        </div>
+    </div>
+
+    <audio id="winSound" src="https://www.soundjay.com/buttons/sounds/button-10.mp3"></audio>
+
+    <script>
+        const canvas = document.getElementById('wheel');
+        const ctx = canvas.getContext('2d');
+        const prizes = ["10.000", "20.000", "50.000", "100.000", "200.000"];
+        const colors = ["#e74c3c", "#3498db", "#2ecc71", "#9b59b6", "#e67e22"];
+        
+        let inventory = [
+            "200.000", "100.000",
+            "50.000", "50.000", "50.000", "50.000",
+            "20.000", "20.000", "20.000", "20.000", "20.000",
+            ...Array(14).fill("10.000")
+        ];
+
+        let currentRotation = 0;
+        let isSpinning = false;
+        let counter = 0;
+
+        function drawWheel() {
+            const arcSize = (2 * Math.PI) / prizes.length;
+            for (let i = 0; i < prizes.length; i++) {
+                ctx.fillStyle = colors[i];
+                ctx.beginPath(); ctx.moveTo(200, 200);
+                ctx.arc(200, 200, 200, i * arcSize, (i + 1) * arcSize);
+                ctx.fill();
+                ctx.save();
+                ctx.translate(200, 200); ctx.rotate(i * arcSize + arcSize/2);
+                ctx.textAlign = "right"; ctx.fillStyle = "white";
+                ctx.font = "bold 20px Arial"; ctx.fillText(prizes[i], 180, 8);
+                ctx.restore();
+            }
+        }
+
+        function spin() {
+            if (isSpinning || inventory.length === 0) return;
+            isSpinning = true;
+            document.getElementById('spinBtn').disabled = true;
+            document.getElementById('result-display').innerText = "ĐANG QUAY...";
+            document.getElementById('result-display').style.opacity = "0.7";
+
+            const randomIndex = Math.floor(Math.random() * inventory.length);
+            const selectedPrize = inventory.splice(randomIndex, 1)[0];
+            const prizeIndex = prizes.indexOf(selectedPrize);
+
+            const segmentDeg = 360 / prizes.length;
+            const targetOffset = (prizeIndex * segmentDeg) + (segmentDeg / 2);
+            const stopAt = (5 * 360) + (360 - targetOffset) + 270; 
+            
+            currentRotation += stopAt - (currentRotation % 360);
+            canvas.style.transform = `rotate(${currentRotation}deg)`;
+
+            setTimeout(() => {
+                isSpinning = false;
+                counter++;
+                const display = document.getElementById('result-display');
+                display.innerText = selectedPrize + " đ";
+                display.style.opacity = "1";
+                
+                document.getElementById('stats').innerText = `Lượt quay còn lại: ${inventory.length}/25`;
+                
+                const item = document.createElement('div');
+                item.className = 'history-item';
+                item.innerHTML = `<span>Lần ${counter}:</span> <span>${selectedPrize}</span>`;
+                document.getElementById('historyList').prepend(item);
+
+                document.getElementById('winSound').play();
+
+                if (inventory.length > 0) {
+                    document.getElementById('spinBtn').disabled = false;
+                } else {
+                    document.getElementById('spinBtn').innerText = "HẾT LƯỢT";
+                }
+            }, 5000);
+        }
+
+        drawWheel();
+    </script>
+</body>
+</html>
